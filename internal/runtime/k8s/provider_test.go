@@ -636,6 +636,11 @@ func TestNeedsStaging(t *testing.T) {
 			ctrlCity: "/city",
 			want:     false,
 		},
+		{
+			name: "pack overlay dirs",
+			cfg:  runtime.Config{PackOverlayDirs: []string{"/pack/overlay"}},
+			want: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
