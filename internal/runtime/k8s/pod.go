@@ -296,6 +296,9 @@ func needsStaging(cfg runtime.Config, ctrlCity string) bool {
 	if len(cfg.CopyFiles) > 0 {
 		return true
 	}
+	if len(cfg.PackOverlayDirs) > 0 {
+		return true
+	}
 	// Rig agents have a work_dir subdirectory.
 	if cfg.WorkDir != "" && cfg.WorkDir != ctrlCity {
 		return true
