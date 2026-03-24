@@ -106,18 +106,22 @@ func (p *Provider) Start(ctx context.Context, name string, cfg runtime.Config) e
 
 	// Check for existing pod (any phase).
 	existing, err := p.ops.listPods(ctx, "gc-session="+label, "")
+	fmt.Fprintf(p.stderr, "[diag] Start(%q): listPods(gc-session=%s) found=%d err=%v\n", name, label, len(existing), err)
 	if err == nil && len(existing) > 0 {
 		pod := &existing[0]
+		fmt.Fprintf(p.stderr, "[diag] Start(%q): existing pod=%s phase=%s\n", name, pod.Name, pod.Status.Phase)
 		if pod.Status.Phase == corev1.PodRunning {
 			// Check if tmux is alive — stale pod detection.
 			_, tmuxErr := p.ops.execInPod(ctx, pod.Name, "agent",
 				[]string{"tmux", "has-session", "-t", tmuxSession}, nil)
+			fmt.Fprintf(p.stderr, "[diag] Start(%q): tmux has-session in %s: err=%v\n", name, pod.Name, tmuxErr)
 			if tmuxErr == nil {
 				return fmt.Errorf("%w: session %q (pod: %s)", runtime.ErrSessionExists, name, pod.Name)
 			}
 			// Stale pod — tmux dead, recreate.
 		}
 		// Clean up existing pod.
+		fmt.Fprintf(p.stderr, "[diag] Start(%q): deleting existing pod %s\n", name, pod.Name)
 		_ = p.ops.deletePod(ctx, pod.Name, 5)
 		_ = waitForDeletion(ctx, p.ops, pod.Name, 30*time.Second)
 	}
@@ -249,14 +253,21 @@ func (p *Provider) Interrupt(name string) error {
 // IsRunning reports whether the session has a running pod with a live tmux session.
 func (p *Provider) IsRunning(name string) bool {
 	ctx := context.Background()
+	label := SanitizeLabel(name)
 	podName, err := p.findRunningPod(ctx, name)
 	if err != nil {
+		fmt.Fprintf(p.stderr, "[diag] IsRunning(%q): findRunningPod failed: label=gc-session=%s err=%v\n", name, label, err)
 		return false
 	}
 	// Pod Running + tmux session alive.
 	_, err = p.ops.execInPod(ctx, podName, "agent",
 		[]string{"tmux", "has-session", "-t", tmuxSession}, nil)
-	return err == nil
+	if err != nil {
+		fmt.Fprintf(p.stderr, "[diag] IsRunning(%q): tmux has-session failed: pod=%s err=%v\n", name, podName, err)
+		return false
+	}
+	fmt.Fprintf(p.stderr, "[diag] IsRunning(%q): alive pod=%s\n", name, podName)
+	return true
 }
 
 // IsAttached reports whether a user terminal is connected to the tmux

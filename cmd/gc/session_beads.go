@@ -176,9 +176,11 @@ func syncSessionBeadsWithSnapshot(
 
 		// Use provider for liveness check (includes zombie detection).
 		state := "stopped"
-		if sp.IsRunning(sn) && sp.ProcessAlive(sn, tp.Hints.ProcessNames) {
+		running := sp.IsRunning(sn)
+		if running && sp.ProcessAlive(sn, tp.Hints.ProcessNames) {
 			state = "active"
 		}
+		fmt.Fprintf(stderr, "[diag] syncBeads %q: running=%v state=%s\n", sn, running, state)
 
 		agentName := tp.TemplateName
 		// For pool instances, use the qualified instance name as the agent_name.

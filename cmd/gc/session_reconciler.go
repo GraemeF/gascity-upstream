@@ -211,6 +211,7 @@ func reconcileSessionBeads(
 		// the expected child process is alive (when ProcessNames configured).
 		running := sp.IsRunning(name)
 		alive := running && sp.ProcessAlive(name, tp.Hints.ProcessNames)
+		fmt.Fprintf(stderr, "[diag] reconcile %q: running=%v alive=%v processNames=%v state=%s\n", name, running, alive, tp.Hints.ProcessNames, session.Metadata["state"])
 
 		// Zombie capture: session exists but process dead — grab scrollback for forensics.
 		if running && !alive {
@@ -405,6 +406,9 @@ func reconcileSessionBeads(
 		shouldWake := len(eval.Reasons) > 0
 
 		if shouldWake && !target.alive {
+			fmt.Fprintf(stderr, "[diag] WAKING %q: reasons=%v alive=%v state=%s hash=%s\n",
+				target.session.Metadata["session_name"], eval.Reasons, target.alive,
+				target.session.Metadata["state"], target.session.Metadata["started_config_hash"])
 			// Session should be awake but isn't — wake it.
 			if sessionIsQuarantined(*target.session, clk) {
 				continue // crash-loop protection
