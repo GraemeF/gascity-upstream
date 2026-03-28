@@ -1911,3 +1911,54 @@ func TestTranscriptPathSkipsAmbiguousWorkDirFallback(t *testing.T) {
 		t.Errorf("TranscriptPath = %q, want empty when workdir fallback is ambiguous", path)
 	}
 }
+
+func TestCreateAliasedBeadOnlyNamed_ClosedLegacyBeadDoesNotBlockNamedSession(t *testing.T) {
+	store := beads.NewMemStore()
+	sp := runtime.NewFake()
+	mgr := NewManager(store, sp)
+
+	// Create a legacy closed bead that holds session_name "gascity-mayor"
+	// but has no configured_named_session metadata (predates named sessions).
+	legacy, err := store.Create(beads.Bead{
+		Title:  "mayor",
+		Type:   BeadType,
+		Labels: []string{LabelSession, "agent:mayor"},
+		Metadata: map[string]string{
+			"session_name": "gascity-mayor",
+			"agent_name":   "mayor",
+			"state":        "suspended",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(legacy): %v", err)
+	}
+	if err := store.Close(legacy.ID); err != nil {
+		t.Fatalf("Close(legacy): %v", err)
+	}
+
+	// A configured named session should be able to reclaim the session_name
+	// from the closed legacy bead. The selfOwner identifies the named session.
+	info, err := mgr.CreateAliasedBeadOnlyNamedWithMetadata(
+		"mayor",                  // alias
+		"gascity-mayor",          // explicitName (the session_name to reclaim)
+		"mayor",                  // template
+		"mayor",                  // title
+		"claude",                 // command
+		"/city/.gc/agents/mayor", // workDir
+		"claude",                 // provider
+		"",                       // transport
+		ProviderResume{},         // resume
+		map[string]string{
+			"configured_named_session":  "true",
+			"configured_named_identity": "mayor",
+			"configured_named_mode":     "on_demand",
+		},
+		"mayor", // selfOwner — the named session identity
+	)
+	if err != nil {
+		t.Fatalf("CreateAliasedBeadOnlyNamedWithMetadata: %v", err)
+	}
+	if info.SessionName != "gascity-mayor" {
+		t.Fatalf("SessionName = %q, want gascity-mayor", info.SessionName)
+	}
+}

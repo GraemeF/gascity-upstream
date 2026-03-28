@@ -304,6 +304,94 @@ func TestEnsureAliasAvailableWithConfigForOwner_AllowsConfiguredSingletonCreate(
 	}
 }
 
+func TestEnsureSessionNameAvailable_ClosedLegacyBeadReclaimBySelfOwner(t *testing.T) {
+	store := beads.NewMemStore()
+
+	// Create a legacy bead (no configured_named_identity) with an explicit
+	// session_name, then close it. This simulates beads created before the
+	// named sessions feature existed.
+	legacy, err := store.Create(beads.Bead{
+		Type:   BeadType,
+		Labels: []string{LabelSession},
+		Metadata: map[string]string{
+			"session_name": "gascity-mayor",
+			"agent_name":   "mayor",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(legacy): %v", err)
+	}
+	if err := store.Close(legacy.ID); err != nil {
+		t.Fatalf("Close(legacy): %v", err)
+	}
+
+	// Without selfOwner, closed beads permanently reserve their session_name.
+	if err := ensureSessionNameAvailable(store, "gascity-mayor", ""); !errors.Is(err, ErrSessionNameExists) {
+		t.Fatalf("ensureSessionNameAvailable(no owner) = %v, want %v", err, ErrSessionNameExists)
+	}
+
+	// With selfOwner set, the legacy closed bead (no configured_named_identity)
+	// should release its name so the named session can reclaim it.
+	if err := ensureSessionNameAvailable(store, "gascity-mayor", "mayor"); err != nil {
+		t.Fatalf("ensureSessionNameAvailable(selfOwner=mayor) = %v, want nil", err)
+	}
+}
+
+func TestEnsureSessionNameAvailable_ClosedNamedBeadReclaimBySelfOwner(t *testing.T) {
+	store := beads.NewMemStore()
+
+	// Create a closed configured named session bead with matching identity.
+	named, err := store.Create(beads.Bead{
+		Type:   BeadType,
+		Labels: []string{LabelSession},
+		Metadata: map[string]string{
+			"session_name":              "gascity-mayor",
+			"configured_named_session":  "true",
+			"configured_named_identity": "mayor",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(named): %v", err)
+	}
+	if err := store.Close(named.ID); err != nil {
+		t.Fatalf("Close(named): %v", err)
+	}
+
+	// Same identity reclaims.
+	if err := ensureSessionNameAvailable(store, "gascity-mayor", "mayor"); err != nil {
+		t.Fatalf("ensureSessionNameAvailable(same identity) = %v, want nil", err)
+	}
+
+	// Different identity is blocked.
+	if err := ensureSessionNameAvailable(store, "gascity-mayor", "deacon"); !errors.Is(err, ErrSessionNameExists) {
+		t.Fatalf("ensureSessionNameAvailable(different identity) = %v, want %v", err, ErrSessionNameExists)
+	}
+}
+
+func TestEnsureSessionNameAvailable_ClosedAdHocBeadRemainsBlocked(t *testing.T) {
+	store := beads.NewMemStore()
+
+	// Create an ad-hoc session (no configured_named_session metadata).
+	adhoc, err := store.Create(beads.Bead{
+		Type:   BeadType,
+		Labels: []string{LabelSession},
+		Metadata: map[string]string{
+			"session_name": "my-custom-session",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(adhoc): %v", err)
+	}
+	if err := store.Close(adhoc.ID); err != nil {
+		t.Fatalf("Close(adhoc): %v", err)
+	}
+
+	// Without selfOwner, ad-hoc session names remain permanently reserved.
+	if err := ensureSessionNameAvailable(store, "my-custom-session", ""); !errors.Is(err, ErrSessionNameExists) {
+		t.Fatalf("ensureSessionNameAvailable(ad-hoc, no owner) = %v, want %v", err, ErrSessionNameExists)
+	}
+}
+
 func TestEnsureSessionNameAvailableWithConfig_UsesResolvedWorkspaceName(t *testing.T) {
 	store := beads.NewMemStore()
 	cfg := &config.City{
