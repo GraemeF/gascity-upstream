@@ -447,6 +447,7 @@ func TestResolveSessionIDMaterializingNamed_RecreatesClosedConfiguredNamedSessio
 			namedSessionIdentityMetadata: "mayor",
 			namedSessionModeMetadata:     "on_demand",
 		},
+		"mayor",
 	)
 	if err != nil {
 		t.Fatalf("CreateAliasedNamedWithTransportAndMetadata: %v", err)

@@ -359,6 +359,7 @@ func (s *Server) materializeNamedSession(store beads.Store, spec apiNamedSession
 			resume,
 			hints,
 			extraMeta,
+			spec.Identity,
 		)
 		return createErr
 	})

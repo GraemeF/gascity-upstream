@@ -141,6 +141,7 @@ func materializeSessionForTemplateWithOptions(
 					spec.Agent.Session,
 					resume,
 					extraMeta,
+					spec.Identity,
 				)
 				return err
 			})
@@ -189,6 +190,7 @@ func materializeSessionForTemplateWithOptions(
 				resume,
 				hints,
 				extraMeta,
+				spec.Identity,
 			)
 			return createErr
 		})
